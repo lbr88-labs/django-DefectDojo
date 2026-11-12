@@ -54,8 +54,9 @@
                     {% include "dojo/filter_snippet.html" with form=filtered.form %}
                 </div>
             </div>
-            {% if findings %}
-                <div class="clearfix">{% include "dojo/paging_snippet.html" with page=findings page_size=True %}</div>
+            {% filter_field_name filtered 'search' as search_field %}
+            {% if findings or search_field in request.GET %}
+                <div class="clearfix" id="findings_paging_top">{% include "dojo/paging_snippet.html" with page=findings page_size=True %}</div>
                 {% if not product_tab or product_tab and product_tab.product|has_object_permission:"edit" %}
                     <div class="dropdown hidden" style="padding-bottom: 5px;" id="bulk_edit_menu">
                         {{ bulk_edit_form.media.css }}
@@ -765,7 +766,7 @@
                         </tbody>
                     </table>
                 </div>
-                <div class="clearfix">
+                <div class="clearfix" id="findings_paging_bottom">
                     {% include "dojo/paging_snippet.html" with page=findings page_size=True %}
                 </div>
             {% else %}
@@ -981,16 +982,16 @@
                     ],
                 });
 
-                // The table only holds the current page: keep the instant filter of the visible rows while typing, then search all findings on the server.
+                // The table only holds the current page, so search all findings on the server and swap the rows in place.
                 {% filter_field_name filtered 'search' as search_field %}
                 var searchParam = '{{ search_field|escapejs }}';
                 var searchInput = $(dojoTable.table().container()).find('.dt-search input, .dataTables_filter input');
-                var serverSearchTimer = null;
+                var searchTimer = null;
+                var searchRequest = null;
                 var currentSearch = new URLSearchParams(window.location.search).get(searchParam) || '';
+                searchInput.off();
                 searchInput.val(currentSearch);
-                searchInput.attr('title', '{{ _("Filters this page as you type, then searches name, vulnerability id, CWE, component, product, engagement, test, service, scan type and reporter across all findings")|escapejs }}');
                 function serverSearch() {
-                    clearTimeout(serverSearchTimer);
                     var value = $.trim(searchInput.val());
                     if (value === currentSearch) {
                         return;
@@ -1002,15 +1003,47 @@
                         params.delete(searchParam);
                     }
                     params.delete('{{ prefix|default:"" }}page');
-                    window.location.search = params.toString();
+                    var query = params.toString();
+                    var url = window.location.pathname + (query ? '?' + query : '');
+                    if (searchRequest) {
+                        searchRequest.abort();
+                    }
+                    searchRequest = new AbortController();
+                    fetch(url, {credentials: 'same-origin', signal: searchRequest.signal})
+                        .then(function(response) { return response.text(); })
+                        .then(function(html) {
+                            var page = new DOMParser().parseFromString(html, 'text/html');
+                            dojoTable.clear();
+                            dojoTable.rows.add($(page).find('#open_findings tbody tr'));
+                            dojoTable.draw(false);
+                            ['#findings_paging_top', '#findings_paging_bottom'].forEach(function(id) {
+                                $(id).html($(page).find(id).html() || '');
+                            });
+                            var newSortLinks = $(page).find('#open_findings thead a');
+                            $('#open_findings thead a').each(function(i) {
+                                if (newSortLinks[i]) {
+                                    $(this).attr('href', $(newSortLinks[i]).attr('href'));
+                                }
+                            });
+                            $('input#select_all').prop('checked', false);
+                            $('div#bulk_edit_menu').addClass('hidden');
+                            history.replaceState(null, '', url);
+                            currentSearch = value;
+                        })
+                        .catch(function(error) {
+                            if (error.name !== 'AbortError') {
+                                window.location.href = url;
+                            }
+                        });
                 }
                 searchInput.on('input', function() {
-                    clearTimeout(serverSearchTimer);
-                    serverSearchTimer = setTimeout(serverSearch, 700);
+                    clearTimeout(searchTimer);
+                    searchTimer = setTimeout(serverSearch, 250);
                 });
                 searchInput.on('keydown', function(e) {
                     if (e.key === 'Enter') {
                         e.preventDefault();
+                        clearTimeout(searchTimer);
                         serverSearch();
                     }
                 });
@@ -1129,7 +1162,7 @@
               $('.table-responsive').css( "overflow", "auto" );
             })
 
-            $('[id^=delete-finding-menu-]').on('click', function () {
+            $(document).on('click', '[id^=delete-finding-menu-]', function () {
               if (confirm('Are you sure you want to delete this finding?'))
               {
                   var form_element = "form#" + this.id + "-form";
@@ -1141,7 +1174,7 @@
                 return confirm('Are you sure you want to delete these findings?')
             });
 
-            $('input[type="checkbox"]').change(function () {
+            $(document).on('change', 'input[type="checkbox"]', function () {
               checkbox_count = 0;
               finding = $(this).attr("name");
               if (finding.indexOf("select_") >= 0)
