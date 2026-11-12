@@ -984,7 +984,7 @@
                 // The table only holds the current page, so search by name on the server instead of filtering the visible rows.
                 {% filter_field_name filtered 'title' as search_field %}
                 var searchParam = '{{ search_field|escapejs }}';
-                var searchInput = $('#open_findings_filter input');
+                var searchInput = $(dojoTable.table().container()).find('.dt-search input, .dataTables_filter input');
                 searchInput.off();
                 searchInput.val(new URLSearchParams(window.location.search).get(searchParam) || '');
                 searchInput.attr('placeholder', '{{ _("Finding name, press Enter")|escapejs }}');
