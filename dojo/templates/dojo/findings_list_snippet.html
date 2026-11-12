@@ -981,21 +981,21 @@
                     ],
                 });
 
-                // The table only holds the current page, so search on the server instead of filtering the visible rows.
+                // The table only holds the current page: keep the instant filter of the visible rows while typing, then search all findings on the server.
                 {% filter_field_name filtered 'search' as search_field %}
                 var searchParam = '{{ search_field|escapejs }}';
                 var searchInput = $(dojoTable.table().container()).find('.dt-search input, .dataTables_filter input');
-                searchInput.off();
-                searchInput.val(new URLSearchParams(window.location.search).get(searchParam) || '');
-                searchInput.attr('placeholder', '{{ _("Search all findings, press Enter")|escapejs }}');
-                searchInput.attr('title', '{{ _("Searches name, vulnerability id, CWE, component, product, engagement, test, service, scan type and reporter across all findings, not just this page")|escapejs }}');
-                searchInput.on('keydown', function(e) {
-                    if (e.key !== 'Enter') {
+                var serverSearchTimer = null;
+                var currentSearch = new URLSearchParams(window.location.search).get(searchParam) || '';
+                searchInput.val(currentSearch);
+                searchInput.attr('title', '{{ _("Filters this page as you type, then searches name, vulnerability id, CWE, component, product, engagement, test, service, scan type and reporter across all findings")|escapejs }}');
+                function serverSearch() {
+                    clearTimeout(serverSearchTimer);
+                    var value = $.trim(searchInput.val());
+                    if (value === currentSearch) {
                         return;
                     }
-                    e.preventDefault();
                     var params = new URLSearchParams(window.location.search);
-                    var value = $.trim($(this).val());
                     if (value) {
                         params.set(searchParam, value);
                     } else {
@@ -1003,6 +1003,16 @@
                     }
                     params.delete('{{ prefix|default:"" }}page');
                     window.location.search = params.toString();
+                }
+                searchInput.on('input', function() {
+                    clearTimeout(serverSearchTimer);
+                    serverSearchTimer = setTimeout(serverSearch, 700);
+                });
+                searchInput.on('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        serverSearch();
+                    }
                 });
             {% endif %}
         });
