@@ -70,11 +70,13 @@ from dojo.risk_acceptance.queries import get_authorized_risk_acceptances
 from dojo.test.queries import get_authorized_tests
 from dojo.user.queries import get_authorized_users
 from dojo.utils import get_system_setting, get_visible_scan_types, is_finding_groups_enabled
+from dojo.vulnerability.queries import finding_ids_with_vulnerability_ids
 
 labels = get_labels()
 
 
 class FindingFilterHelper(FilterSet):
+    search = CharFilter(method="filter_search", label="Search")
     title = CharFilter(lookup_expr="icontains")
     date = DateRangeFilter(field_name="date", label="Date Discovered")
     on = DateFilter(field_name="date", lookup_expr="exact", label="Discovered On")
@@ -286,6 +288,32 @@ class FindingFilterHelper(FilterSet):
         if value:
             return queryset.exclude(mitigation__isnull=True).exclude(mitigation__exact="")
         return queryset.filter(Q(mitigation__isnull=True) | Q(mitigation__exact=""))
+
+    search_fields = (
+        "title",
+        "component_name",
+        "component_version",
+        "service",
+        "test__title",
+        "test__test_type__name",
+        "test__engagement__name",
+        "test__engagement__product__name",
+        "reporter__username",
+        "reporter__first_name",
+        "reporter__last_name",
+    )
+
+    def filter_search(self, queryset, name, value):
+        value = value.strip()
+        if not value:
+            return queryset
+        query = Q(id__in=finding_ids_with_vulnerability_ids(value, lookup="icontains"))
+        for field in self.search_fields:
+            query |= Q(**{f"{field}__icontains": value})
+        cwe = value.upper().removeprefix("CWE-")
+        if cwe.isdigit():
+            query |= Q(cwe=int(cwe))
+        return queryset.filter(query)
 
 
 def get_finding_group_queryset_for_context(pid=None, eid=None, tid=None):

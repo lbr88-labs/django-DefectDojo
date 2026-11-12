@@ -981,14 +981,14 @@
                     ],
                 });
 
-                // The table only holds the current page, so search by name on the server instead of filtering the visible rows.
-                {% filter_field_name filtered 'title' as search_field %}
+                // The table only holds the current page, so search on the server instead of filtering the visible rows.
+                {% filter_field_name filtered 'search' as search_field %}
                 var searchParam = '{{ search_field|escapejs }}';
                 var searchInput = $(dojoTable.table().container()).find('.dt-search input, .dataTables_filter input');
                 searchInput.off();
                 searchInput.val(new URLSearchParams(window.location.search).get(searchParam) || '');
-                searchInput.attr('placeholder', '{{ _("Finding name, press Enter")|escapejs }}');
-                searchInput.attr('title', '{{ _("Searches all findings by name, not just this page")|escapejs }}');
+                searchInput.attr('placeholder', '{{ _("Search all findings, press Enter")|escapejs }}');
+                searchInput.attr('title', '{{ _("Searches name, vulnerability id, CWE, component, product, engagement, test, service, scan type and reporter across all findings, not just this page")|escapejs }}');
                 searchInput.on('keydown', function(e) {
                     if (e.key !== 'Enter') {
                         return;
