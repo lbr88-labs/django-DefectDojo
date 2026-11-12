@@ -37,6 +37,12 @@ def url_replace(request, field="page", value=1):
 
 
 @register.simple_tag
+def filter_field_name(filterset, name):
+    form = getattr(filterset, "form", None)
+    return form.add_prefix(name) if form is not None else name
+
+
+@register.simple_tag
 def dojo_sort(request, display="Name", value="title", default=None, field="o"):
     icon = '<i class="fa-solid fa-sort'
     title = "Click to sort "

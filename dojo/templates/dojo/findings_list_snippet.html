@@ -265,6 +265,7 @@
                         </ul>
                     </div>
                 {% endif %}
+                {% filter_field_name filtered 'o' as sort_field %}
                 <div class="panel panel-default table-responsive">
                     <table id="open_findings" class="tablesorter-bootstrap table table-condensed table-striped table-hover">
                         <thead>
@@ -316,14 +317,14 @@
                                     {% endif %}
                                     <th></th>
                                     <th class="nowrap centered severity-sort" scope="col">
-                                        {% dojo_sort request 'Severity' 'numerical_severity' %}
+                                        {% dojo_sort request 'Severity' 'numerical_severity' field=sort_field %}
                                     </th>
                                     <th class="nowrap" scope="col">
                                         {% comment %} The display field is translated in the function. No need to translate here as well{% endcomment %}
-                                        {% dojo_sort request 'Name' 'title' %}
+                                        {% dojo_sort request 'Name' 'title' field=sort_field %}
                                     </th>
                                     <th scope="col">
-                                        {% dojo_sort request 'CWE' 'cwe' %}
+                                        {% dojo_sort request 'CWE' 'cwe' field=sort_field %}
                                     </th>
                                     <th scope="col">
                                         {% trans "Vulnerability Id" %}
@@ -346,18 +347,18 @@
                                     <th class="nowrap" scope="col">
                                         {% if filter_name == 'Closed' %}
                                             {% comment %} The display field is translated in the function. No need to translate here as well{% endcomment %}
-                                            {% dojo_sort request 'Closed Date' 'mitigated' %}
+                                            {% dojo_sort request 'Closed Date' 'mitigated' field=sort_field %}
                                         {% else %}
                                             {% comment %} The display field is translated in the function. No need to translate here as well{% endcomment %}
-                                            {% dojo_sort request 'Date' 'date' %}
+                                            {% dojo_sort request 'Date' 'date' field=sort_field %}
                                         {% endif %}
                                     </th>
                                     <th class="nowrap" scope="col">
-                                        {% dojo_sort request 'Age' 'date' %}
+                                        {% dojo_sort request 'Age' 'date' field=sort_field %}
                                     </th>
                                     {% if system_settings.enable_finding_sla %}
                                         <th scope="col">
-                                            {% dojo_sort request 'SLA' 'sla_age_days' %}
+                                            {% dojo_sort request 'SLA' 'sla_age_days' field=sort_field %}
                                         </th>
                                     {% endif %}
                                     <th scope="col">
@@ -390,17 +391,17 @@
                                     {% if show_product_column and product_tab is None %}
                                         <th class="nowrap" scope="col">
                                             {% comment %} The display field is translated in the function. No need to translate here as well{% endcomment %}
-                                            {% dojo_sort request labels.ASSET_LABEL 'test__engagement__product__name' %}
+                                            {% dojo_sort request labels.ASSET_LABEL 'test__engagement__product__name' field=sort_field %}
                                         </th>
                                     {% endif %}
                                     <th scope="col">
-                                        {% dojo_sort request 'Service' 'service' %}
+                                        {% dojo_sort request 'Service' 'service' field=sort_field %}
                                     </th>
                                     <th scope="col">
-                                        {% dojo_sort request 'Planned Remediation' 'planned_remediation_date' %}
+                                        {% dojo_sort request 'Planned Remediation' 'planned_remediation_date' field=sort_field %}
                                     </th>
                                     <th scope="col">
-                                        {% dojo_sort request 'Planned remediation version' 'planned_remediation_version' %}
+                                        {% dojo_sort request 'Planned remediation version' 'planned_remediation_version' field=sort_field %}
                                     </th>
                                     {% if filter_name != 'Closed' %}
                                         <th scope="col">
@@ -978,6 +979,30 @@
                             extend: 'print'
                         }),
                     ],
+                });
+
+                // The table only holds the current page, so search by name on the server instead of filtering the visible rows.
+                {% filter_field_name filtered 'title' as search_field %}
+                var searchParam = '{{ search_field|escapejs }}';
+                var searchInput = $('#open_findings_filter input');
+                searchInput.off();
+                searchInput.val(new URLSearchParams(window.location.search).get(searchParam) || '');
+                searchInput.attr('placeholder', '{{ _("Finding name, press Enter")|escapejs }}');
+                searchInput.attr('title', '{{ _("Searches all findings by name, not just this page")|escapejs }}');
+                searchInput.on('keydown', function(e) {
+                    if (e.key !== 'Enter') {
+                        return;
+                    }
+                    e.preventDefault();
+                    var params = new URLSearchParams(window.location.search);
+                    var value = $.trim($(this).val());
+                    if (value) {
+                        params.set(searchParam, value);
+                    } else {
+                        params.delete(searchParam);
+                    }
+                    params.delete('{{ prefix|default:"" }}page');
+                    window.location.search = params.toString();
                 });
             {% endif %}
         });
